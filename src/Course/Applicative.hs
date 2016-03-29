@@ -61,9 +61,11 @@ infixl 4 <*>
   (a -> b)
   -> f a
   -> f b
-(<$>) =
-  error "todo: Course.Applicative#(<$>)"
+(<$>) = (<*>) . pure
+ 
 
+idApply :: Id (a -> b) -> Id a -> Id b
+idApply (Id f) (Id a) = (Id (f a))
 -- | Insert into Id.
 --
 -- prop> pure x == Id x
@@ -74,15 +76,32 @@ instance Applicative Id where
   pure ::
     a
     -> Id a
-  pure =
-    error "todo: Course.Applicative pure#instance Id"
+  pure = Id
+
   (<*>) :: 
     Id (a -> b)
     -> Id a
     -> Id b
-  (<*>) =
-    error "todo: Course.Applicative (<*>)#instance Id"
+  (<*>) = idApply
 
+--listApply :: List (a -> b) -> List a -> List b
+--listApply Nil _  =  Nil
+--listApply _ Nil  =  Nil 
+--listApply (f:.fs) (x:.xs) = (f x) :. listApply fs xs
+---- note that this implementation breaks the law of left identity. i.e.:
+-- >> (pure id) <*> (1 :.  4 :.  Nil)
+--[1]
+
+
+listApply :: List (a -> b) -> List a -> List b
+listApply Nil _  =  Nil
+listApply _ Nil  =  Nil 
+listApply (f:.fs) (x:.xs) = ((f x) :. map' f xs) ++ listApply fs (x:.xs)
+  where 
+    map' _ Nil = Nil
+    map' f' (x':.xs') = (f' x') :. map' f' xs'
+    Nil ++ ys = ys
+    (x'':.xs'') ++ ys = x'' :. (xs'' ++ ys)
 -- | Insert into a List.
 --
 -- prop> pure x == x :. Nil
@@ -93,14 +112,14 @@ instance Applicative List where
   pure ::
     a
     -> List a
-  pure =
-    error "todo: Course.Applicative pure#instance List"
+  pure = (:. Nil)
+
   (<*>) ::
     List (a -> b)
+
     -> List a
     -> List b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance List"
+  fs <*> xs = flatMap (`map` xs) fs
 
 -- | Insert into an Optional.
 --
@@ -118,14 +137,14 @@ instance Applicative Optional where
   pure ::
     a
     -> Optional a
-  pure =
-    error "todo: Course.Applicative pure#instance Optional"
+  pure = Full
   (<*>) ::
     Optional (a -> b)
     -> Optional a
     -> Optional b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance Optional"
+  Empty <*> _ = Empty
+  _ <*> Empty = Empty
+  (Full f) <*> (Full x) = Full (f x)
 
 -- | Insert into a constant function.
 --
@@ -149,16 +168,17 @@ instance Applicative ((->) t) where
   pure ::
     a
     -> ((->) t a)
-  pure =
-    error "todo: Course.Applicative pure#((->) t)"
+  pure = const
   (<*>) ::
     ((->) t (a -> b))
     -> ((->) t a)
     -> ((->) t b)
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance ((->) t)"
-
-
+  (<*>) = readerApply
+--fa :: b -> c
+--f :: a -> b -> c
+--r :: b -> c
+readerApply :: ((->) t (a -> b)) -> ((->) t a) -> ((->) t b)
+readerApply f fa = \b -> (f b) $ fa b
 -- | Apply a binary function in the environment.
 --
 -- >>> lift2 (+) (Id 7) (Id 8)
@@ -184,8 +204,7 @@ lift2 ::
   -> f a
   -> f b
   -> f c
-lift2 =
-  error "todo: Course.Applicative#lift2"
+lift2 f a b = f <$> a <*> b
 
 -- | Apply a ternary function in the environment.
 --
@@ -216,8 +235,7 @@ lift3 ::
   -> f b
   -> f c
   -> f d
-lift3 =
-  error "todo: Course.Applicative#lift3"
+lift3 f a b c = f <$> a <*> b <*> c
 
 -- | Apply a quaternary function in the environment.
 --
@@ -249,8 +267,7 @@ lift4 ::
   -> f c
   -> f d
   -> f e
-lift4 =
-  error "todo: Course.Applicative#lift4"
+lift4 f a b c d = f <$> a <*> b <*> c <*> d
 
 -- | Apply, discarding the value of the first argument.
 -- Pronounced, right apply.
@@ -275,8 +292,7 @@ lift4 =
   f a
   -> f b
   -> f b
-(*>) =
-  error "todo: Course.Applicative#(*>)"
+ x *> b = (const b) <*> a
 
 -- | Apply, discarding the value of the second argument.
 -- Pronounced, left apply.
